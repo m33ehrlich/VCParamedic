@@ -1,0 +1,10 @@
+{
+  "name": "Med Study Sheet Generator",
+  "short_name": "Med Study",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#2563eb",
+  "description": "Turn your anatomy and physiology notes into drag-and-drop fill-in-the-blank study sheets.",
+  "icons": []
+}
