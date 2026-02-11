@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Med Study Sheet Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="manifest.webmanifest">
+  <!-- Tesseract.js for OCR -->
+  <script src="https://unpkg.com/tesseract.js@v5.0.3/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #0f172a;
+    }
+    body {
+      margin: 0;
+      padding: 1.5rem 0.75rem;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #dbeafe 0, #eff6ff 35%, #f9fafb 75%, #ffffff 100%);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      transition: background 0.25s ease, color 0.2s ease;
+    }
+    .app {
+      width: 100%;
+      max-width: 1120px;
+      background: #ffffff;
+      border-radius: 18px;
+      box-shadow:
+        0 18px 45px rgba(15,23,42,0.16),
+        0 0 0 1px rgba(148,163,184,0.3);
+      padding: 1.75rem 1.75rem 2rem;
+      box-sizing: border-box;
+      transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+    @media (max-width: 640px) {
+      .app {
+        padding: 1.25rem 1rem 1.5rem;
+        border-radius: 14px;
+      }
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      letter-spacing: 0.01em;
+      color: #0f172a;
+      text-align: center;
+      transition: color 0.2s ease;
+    }
+    .subtitle {
+      margin-top: 0.35rem;
+      font-size: 0.9rem;
+      color: #6b7280;
+      text-align: center;
+      transition: color 0.2s ease;
+    }
+
+    .controls {
+      margin-top: 1.25rem;
+      margin-bottom: 1rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 999px;
+      background: rgba(239,246,255,0.9);
+      border: 1px solid #dbeafe;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem 0.9rem;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .controls > * {
+      font-size: 0.9rem;
+    }
+    input[type="file"] {
+      max-width: 260px;
+      font-size: 0.86rem;
+    }
+    select {
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+    button {
+      padding: 0.4rem 0.9rem;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white;
+      font-weight: 500;
+      font-size: 0.9rem;
+      cursor: pointer;
+      box-shadow: 0 8px 16px rgba(37,99,235,0.35);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, background 0.2s ease;
+    }
+    button:hover:not(:disabled) {
+      filter: brightness(1.03);
+      transform: translateY(-0.5px);
+    }
+    button:active:not(:disabled) {
+      transform: translateY(0.5px);
+      box-shadow: 0 4px 10px rgba(37,99,235,0.3);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+    .difficulty-label {
+      font-weight: 600;
+      margin-right: 0.15rem;
+      color: #1f2937;
+      transition: color 0.2s ease;
+    }
+
+    .ghost-button {
+      background: transparent;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.8);
+      box-shadow: none;
+      color: #4b5563;
+      padding-inline: 0.8rem;
+      font-size: 0.85rem;
+    }
+    .ghost-button:hover:not(:disabled) {
+      filter: none;
+      background: rgba(148,163,184,0.1);
+      transform: translateY(0);
+      box-shadow: none;
+    }
+    .ghost-button:active:not(:disabled) {
+      transform: translateY(0.5px);
+    }
+
+    .status {
+      font-size: 0.8rem;
+      color: #4b5563;
+      min-height: 1em;
+      margin-bottom: 0.75rem;
+      text-align: center;
+      transition: color 0.2s ease;
+    }
+    .status.error {
+      color: #b91c1c;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+      gap: 1.4rem;
+      margin-top: 0.25rem;
+    }
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Page image + overlay */
+    .page-wrapper {
+      border-radius: 14px;
+      padding: 0.75rem;
+      background: radial-gradient(circle at top left, #eff6ff 0, #f9fafb 40%, #ffffff 100%);
+      border: 1px solid #e5e7eb;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .page-container {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #111827;
+      transition: background 0.2s ease;
+    }
+    #pageImage {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      filter: contrast(1.03);
+    }
+    .blank-zone {
+      position: absolute;
+      background: rgba(255,255,255,0.96);
+      border-radius: 999px;
+      border: 1.5px solid #9ca3af;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      text-align: center;
+      padding: 0 4px;
+      box-sizing: border-box;
+      transition:
+        box-shadow 0.15s ease,
+        border-color 0.15s ease,
+        background-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.12s ease;
+      box-shadow: 0 1px 4px rgba(15,23,42,0.25);
+      color: #111827;
+    }
+    .blank-zone.hover {
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.4);
+      border-color: #2563eb;
+      transform: translateY(-0.5px);
+    }
+    .blank-zone.correct {
+      border-color: #16a34a;
+      background: rgba(220,252,231,0.96);
+      box-shadow: 0 0 0 2px rgba(22,163,74,0.35);
+      color: #065f46;
+    }
+    .blank-zone.incorrect {
+      border-color: #dc2626;
+      background: rgba(254,226,226,0.96);
+      box-shadow: 0 0 0 2px rgba(220,38,38,0.2);
+      color: #7f1d1d;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #6b7280;
+      margin-top: 0.5rem;
+      transition: color 0.2s ease;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      border-radius: 14px;
+      padding: 0.8rem 0.85rem 0.9rem;
+      background: linear-gradient(145deg, #eff6ff, #f9fafb);
+      border: 1px solid #dbeafe;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .sidebar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(129,140,248,0.18), transparent 55%);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+    .sidebar-inner {
+      position: relative;
+      z-index: 1;
+    }
+    .sidebar h2 {
+      font-size: 1rem;
+      margin-top: 0;
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: #111827;
+      transition: color 0.2s ease;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(37,99,235,0.1);
+      color: #1d4ed8;
+      border: 1px solid rgba(37,99,235,0.25);
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    .sidebar p {
+      font-size: 0.83rem;
+      margin-top: 0;
+      color: #4b5563;
+      transition: color 0.2s ease;
+    }
+    .word-bank {
+      margin-top: 0.4rem;
+      padding: 0.5rem;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.94);
+      border: 1px solid #e5e7eb;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 0.88rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .word-bank em {
+      color: #9ca3af;
+      transition: color 0.2s ease;
+    }
+    .small-note {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 0.6rem;
+      transition: color 0.2s ease;
+    }
+    .draggable-word {
+      padding: 0.18rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      cursor: grab;
+      user-select: none;
+      white-space: nowrap;
+      font-size: 0.78rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.16);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+      color: #111827;
+    }
+    .draggable-word:hover {
+      background: #eef2ff;
+    }
+    .draggable-word:active {
+      cursor: grabbing;
+      transform: translateY(1px);
+      box-shadow: 0 0 0 rgba(0,0,0,0);
+    }
+
+    /* Custom mode panel */
+    .custom-panel {
+      margin-top: 0.9rem;
+      padding: 0.6rem 0.85rem 0.75rem;
+      border-radius: 12px;
+      border: 1px dashed #c7d2fe;
+      background: rgba(239,246,255,0.8);
+      font-size: 0.84rem;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .custom-panel h3 {
+      margin: 0 0 0.35rem;
+      font-size: 0.9rem;
+      color: #1e293b;
+      transition: color 0.2s ease;
+    }
+    .custom-list {
+      max-height: 190px;
+      overflow-y: auto;
+      padding: 0.35rem 0;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      margin-bottom: 0.45rem;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .custom-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin: 0;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.8rem;
+      color: #111827;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+    .custom-item:nth-child(2n) {
+      background: rgba(249,250,251,0.75);
+    }
+    .custom-item small {
+      color: #9ca3af;
+      font-size: 0.7rem;
+      margin-left: auto;
+      transition: color 0.2s ease;
+    }
+
+    /* DARK MODE OVERRIDES */
+    body.dark {
+      background: radial-gradient(circle at top, #020617 0, #020617 35%, #020617 100%);
+      color: #e5e7eb;
+    }
+    body.dark .app {
+      background: #020617;
+      box-shadow:
+        0 18px 50px rgba(0,0,0,0.7),
+        0 0 0 1px rgba(30,64,175,0.4);
+    }
+    body.dark h1 {
+      color: #e5e7eb;
+    }
+    body.dark .subtitle {
+      color: #9ca3af;
+    }
+    body.dark .controls {
+      background: rgba(15,23,42,0.95);
+      border-color: #1d4ed8;
+    }
+    body.dark select {
+      background: #020617;
+      border-color: #1d4ed8;
+      color: #e5e7eb;
+    }
+    body.dark .difficulty-label {
+      color: #e5e7eb;
+    }
+    body.dark .ghost-button {
+      border-color: rgba(148,163,184,0.9);
+      color: #e5e7eb;
+    }
+    body.dark .ghost-button:hover:not(:disabled) {
+      background: rgba(148,163,184,0.25);
+    }
+    body.dark .status {
+      color: #e5e7eb;
+    }
+    body.dark .status.error {
+      color: #fecaca;
+    }
+
+    body.dark .page-wrapper {
+      background: radial-gradient(circle at top left, #020617 0, #020617 50%, #020617 100%);
+      border-color: #1f2937;
+    }
+    body.dark .page-container {
+      background: #000000;
+    }
+    body.dark .blank-zone {
+      background: rgba(15,23,42,0.95);
+      border-color: #6b7280;
+      color: #e5e7eb;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.7);
+    }
+    body.dark .blank-zone.hover {
+      box-shadow: 0 0 0 2px rgba(96,165,250,0.7);
+      border-color: #60a5fa;
+    }
+    body.dark .blank-zone.correct {
+      background: rgba(22,163,74,0.2);
+      border-color: #4ade80;
+      color: #bbf7d0;
+      box-shadow: 0 0 0 2px rgba(22,163,74,0.55);
+    }
+    body.dark .blank-zone.incorrect {
+      background: rgba(127,29,29,0.7);
+      border-color: #fca5a5;
+      color: #fee2e2;
+      box-shadow: 0 0 0 2px rgba(248,113,113,0.6);
+    }
+
+    body.dark .hint {
+      color: #9ca3af;
+    }
+
+    body.dark .sidebar {
+      background: radial-gradient(circle at top, #020617 0, #020617 60%, #020617 100%);
+      border-color: #1d4ed8;
+    }
+    body.dark .sidebar::before {
+      background: radial-gradient(circle at top, rgba(59,130,246,0.3), transparent 55%);
+    }
+    body.dark .sidebar h2 {
+      color: #e5e7eb;
+    }
+    body.dark .sidebar p {
+      color: #cbd5f5;
+    }
+    body.dark .badge {
+      background: rgba(37,99,235,0.2);
+      border-color: rgba(129,140,248,0.6);
+      color: #bfdbfe;
+    }
+    body.dark .word-bank {
+      background: rgba(15,23,42,0.95);
+      border-color: #1f2937;
+    }
+    body.dark .word-bank em {
+      color: #6b7280;
+    }
+    body.dark .small-note {
+      color: #6b7280;
+    }
+    body.dark .draggable-word {
+      background: #020617;
+      border-color: #374151;
+      color: #e5e7eb;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    }
+    body.dark .draggable-word:hover {
+      background: #111827;
+    }
+
+    body.dark .custom-panel {
+      background: rgba(15,23,42,0.9);
+      border-color: #1d4ed8;
+    }
+    body.dark .custom-panel h3 {
+      color: #e5e7eb;
+    }
+    body.dark .custom-list {
+      background: #020617;
+      border-color: #1f2937;
+    }
+    body.dark .custom-item {
+      color: #e5e7eb;
+    }
+    body.dark .custom-item:nth-child(2n) {
+      background: rgba(15,23,42,0.85);
+    }
+    body.dark .custom-item small {
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Med Study Sheet Generator</h1>
+    <p class="subtitle">
+      Upload your notes, blank out medical/anatomy/biology terms, then drag words back into place. Custom mode lets you pick exact blanks.
+    </p>
+
+    <div class="controls">
+      <input type="file" id="imageInput" accept="image/*">
+      <label>
+        <span class="difficulty-label">Difficulty:</span>
+        <select id="difficultySelect">
+          <option value="very_easy">Very Easy (few terms)</option>
+          <option value="easy">Easy (more terms)</option>
+          <option value="medium" selected>Medium (lots of terms + some numbers)</option>
+          <option value="hard">Hard (most terms + numbers)</option>
+          <option value="insane">Insane (almost everything scientific)</option>
+          <option value="custom">Custom (you choose terms)</option>
+        </select>
+      </label>
+      <button id="processBtn" disabled>
+        Generate Study Sheet
+      </button>
+      <button id="themeToggle" type="button" class="ghost-button">
+        🌙 Night mode
+      </button>
+    </div>
+    <div id="status" class="status"></div>
+
+    <div class="layout">
+      <div>
+        <div class="page-wrapper">
+          <div id="pageContainer" class="page-container">
+            <img id="pageImage" alt="Uploaded sheet will appear here">
+          </div>
+        </div>
+        <p class="hint">
+          • Drag words from the word bank onto the blanks. Green = correct, red = incorrect.<br>
+          • Higher difficulties remove more medical/anatomy/biology terms and numbers. Custom lets you pick exactly which ones.
+        </p>
+
+        <div id="customPanel" class="custom-panel" style="display:none;">
+          <h3>Custom mode: choose which terms/numbers to remove</h3>
+          <p style="margin-top:0;">
+            Check the terms you want turned into blanks, then tap <strong>Apply custom blanks</strong>.
+          </p>
+          <div id="customList" class="custom-list"></div>
+          <button id="applyCustomBtn">Apply custom blanks</button>
+        </div>
+      </div>
+
+      <aside class="sidebar">
+        <div class="sidebar-inner">
+          <h2>
+            Word Bank
+            <span id="wordCountBadge" class="badge" style="display:none;"></span>
+          </h2>
+          <p>Drag each word/number onto the correct blank on the page. Used words disappear from the bank.</p>
+          <div id="wordBank" class="word-bank">
+            <em>No sheet processed yet.</em>
+          </div>
+          <p class="small-note">
+            OCR isn’t perfect – it may miss or mis-read some terms. This is a study helper, not a grading system.
+          </p>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // PWA service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(err => {
+          console.log('Service worker registration failed:', err);
+        });
+      });
+    }
+
+    const imageInput = document.getElementById('imageInput');
+    const processBtn = document.getElementById('processBtn');
+    const statusEl = document.getElementById('status');
+    const difficultySelect = document.getElementById('difficultySelect');
+    const pageImage = document.getElementById('pageImage');
+    const pageContainer = document.getElementById('pageContainer');
+    const wordBankEl = document.getElementById('wordBank');
+    const wordCountBadge = document.getElementById('wordCountBadge');
+
+    const customPanel = document.getElementById('customPanel');
+    const customList = document.getElementById('customList');
+    const applyCustomBtn = document.getElementById('applyCustomBtn');
+    const themeToggle = document.getElementById('themeToggle');
+
+    let img = new Image();
+    let imgDataUrl = null;
+    let customTermMap = null;
+
+    // Theme handling
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.body.classList.add('dark');
+        themeToggle.textContent = '☀️ Day mode';
+      } else {
+        document.body.classList.remove('dark');
+        themeToggle.textContent = '🌙 Night mode';
+      }
+      localStorage.setItem('medStudyTheme', theme);
+    }
+
+    function initTheme() {
+      const stored = localStorage.getItem('medStudyTheme');
+      if (stored === 'dark' || stored === 'light') {
+        applyTheme(stored);
+      } else {
+        applyTheme('light');
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const isDark = document.body.classList.contains('dark');
+      applyTheme(isDark ? 'light' : 'dark');
+    });
+
+    initTheme();
+
+    // Difficulty config
+    const DIFFICULTY_CONFIG = {
+      very_easy: { proportion: 0.35, includeNumbers: false },
+      easy:      { proportion: 0.55, includeNumbers: false },
+      medium:    { proportion: 0.75, includeNumbers: true  },
+      hard:      { proportion: 0.9,  includeNumbers: true  },
+      insane:    { proportion: 1.0,  includeNumbers: true  }
+    };
+
+    const CHANGE_WORDS = new Set([
+      "increase","increased","increases","increasing",
+      "decrease","decreased","decreases","decreasing",
+      "higher","lower","high","low",
+      "elevated","elevation",
+      "reduced","reduction",
+      "upregulated","upregulation","upregulate",
+      "downregulated","downregulation","downregulate",
+      "more","less","greater","lesser",
+      "rise","rises","rising",
+      "fall","falls","falling",
+      "improve","improves","improved","improvement",
+      "worsen","worsens","worsened","worsening"
+    ]);
+
+    const MEDICAL_TERMS = new Set([
+      "artery","arteries","vein","veins","capillary","capillaries","arteriole","venule",
+      "heart","atria","atrium","ventricle","ventricles","aorta","pulmonary",
+      "cardiac","myocardium","endocardium","pericardium",
+      "blood","plasma","erythrocyte","erythrocytes","leukocyte","leukocytes",
+      "thrombocyte","thrombocytes","rbc","rbcs","wbc","wbcs","platelet","platelets",
+      "hemoglobin","hematocrit",
+      "lung","lungs","bronchus","bronchi","bronchiole","bronchioles","alveolus","alveoli",
+      "trachea","larynx","pharynx","diaphragm",
+      "kidney","kidneys","nephron","nephrons","glomerulus","glomeruli","tubule","tubules",
+      "ureter","ureters","urethra","bladder",
+      "liver","hepatocyte","hepatocytes","bile","gallbladder",
+      "stomach","intestine","intestines","duodenum","jejunum","ileum","colon","rectum","esophagus",
+      "pancreas","islet","islets","acinar",
+      "brain","cerebrum","cerebellum","brainstem","medulla","pons","midbrain","thalamus","hypothalamus",
+      "neuron","neurons","neuroglia","axon","axons","dendrite","dendrites",
+      "synapse","synapses","synaptic","neurotransmitter","neurotransmitters",
+      "nerve","nerves","spinal","cord","ganglion","ganglia",
+      "muscle","muscles","myofiber","myofibers","sarcomere","sarcomeres","myosin","actin",
+      "tendon","tendons","ligament","ligaments","fascia",
+      "bone","bones","osteon","osteocyte","osteocytes","osteoblast","osteoblasts","osteoclast","osteoclasts","marrow",
+      "skull","cranium","vertebra","vertebrae","rib","ribs","sternum","pelvis","femur","tibia","fibula","humerus","radius","ulna","scapula","clavicle",
+      "skin","epidermis","dermis","hypodermis","melanocyte","melanocytes","keratinocyte","keratinocytes","sebaceous","sudoriferous",
+      "endocrine","hormone","hormones","gland","glands","pituitary","thyroid","parathyroid","adrenal","gonad","gonads","ovary","ovaries","testis","testes",
+      "lymph","lymphatic","lymphocyte","lymphocytes","thymus","spleen","node","nodes",
+      "immune","immunity","antibody","antibodies","antigen","antigens","phagocyte","phagocytes",
+      "macrophage","macrophages","receptor","receptors","afferent","efferent","sensory","motor",
+      "systole","diastole","ventilation","perfusion","filtration","reabsorption","secretion",
+      "hypertension","hypotension","tachycardia","bradycardia","tachypnea","bradypnea",
+      "edema","sepsis","septic","shock","infarction","ischemia","ischemic","necrosis","necrotic",
+      "inflammation","inflamed","infected","infection","chronic","acute","subacute",
+      "benign","malignant","carcinoma","sarcoma","tumor","neoplasm",
+      "failure","insufficiency","obstruction","occlusion","stenosis","regurgitation",
+      "metastasis","metastatic",
+      "hyperkalemia","hypokalemia","hypernatremia","hyponatremia",
+      "hyperglycemia","hypoglycemia","hypercalcemia","hypocalcemia",
+      "anemia","anemic","leukocytosis","leukopenia","thrombocytopenia",
+      "pneumonia","copd","asthma","emphysema","fibrosis",
+      "diabetes","diabetic","nephropathy","retinopathy","neuropathy",
+      "cirrhosis","hepatitis","pancreatitis","gastritis","colitis",
+      "osteoporosis","arthritis","osteoarthritis","rheumatoid",
+      "stroke","cva","tia","myocardial","angina",
+      "analgesic","antipyretic","antibiotic","anticoagulant","antiplatelet","antihypertensive",
+      "bronchodilator","diuretic","sedative","anesthetic"
+    ]);
+
+    const BIOLOGY_TERMS = new Set([
+      "cell","cells","tissue","tissues","organ","organs","organism","organisms",
+      "homeostasis","metabolism","metabolic","anabolism","catabolism",
+      "protein","proteins","peptide","peptides","amino","aminoacid","aminoacids",
+      "enzyme","enzymes","substrate","substrates","product","products",
+      "dna","rna","mrna","trna","rrna","chromosome","chromosomes","gene","genes",
+      "genome","genetic","heredity","allele","alleles",
+      "mitosis","meiosis","replication","transcription","translation",
+      "receptor","receptors","ligand","ligands","signal","signaling",
+      "diffusion","osmosis","gradient","membrane","membranes","phospholipid","phospholipids",
+      "cytoplasm","cytosol","nucleus","nuclei","nucleolus","organelle","organelles",
+      "mitochondrion","mitochondria","ribosome","ribosomes","golgi","lysosome","lysosomes","peroxisome","peroxisomes",
+      "epithelium","epithelial","connective","smooth","skeletal","cardiac",
+      "respiration","aerobic","anaerobic","glycolysis","krebs","citric","electron","transport",
+      "phagocytosis","endocytosis","exocytosis",
+      "pathogen","pathogens","bacteria","bacterium","virus","viruses","fungus","fungi","parasite","parasites"
+    ]);
+
+    const STEMS = [
+      "cardio","neuro","hepat","nephro","pulmon","gastro","derm","dermo",
+      "osteo","myo","encephal","angi","phleb","arthr","cranio","hemo","hema","pharm","onc","uro","pneumo",
+      "cyto","cyte","hist","myelo","neuro","glia","erythr","leuk","thromb","lymph","oste","chondro","myelin",
+      "physio","anatom","bio","immune","endocr","hemat","glyco"
+    ];
+
+    const MEDICATION_SUFFIXES = [
+      "olol","pril","sartan","dipine","statin","cillin","cycline","mycin","micin",
+      "floxacin","azole","prazole","caine","mab","nib","tidine","sone","sonide","solone","dine","dopa","pramide"
+    ];
+
+    const BIO_SUFFIXES = [
+      "itis","osis","emia","uria","lysis","lytic","philia","philic","phobic","phobia",
+      "plasia","trophy","genic","genesis","oma","opathy","ology","logy"
+    ];
+
+    const COMMON_MEDICATIONS = new Set([
+      "aspirin","ibuprofen","acetaminophen","paracetamol","naproxen",
+      "warfarin","heparin","enoxaparin","apixaban","rivaroxaban",
+      "metoprolol","propranolol","atenolol","lisinopril","enalapril","captopril",
+      "losartan","valsartan","amlodipine","nifedipine",
+      "simvastatin","atorvastatin","rosuvastatin",
+      "insulin","metformin","glipizide",
+      "albuterol","salbutamol","ipratropium","tiotropium",
+      "omeprazole","pantoprazole","lansoprazole",
+      "morphine","fentanyl","hydromorphone",
+      "vancomycin","ceftriaxone","azithromycin","amoxicillin","ampicillin","clindamycin",
+      "gentamicin","tobramycin","doxycycline","ciprofloxacin","levofloxacin",
+      "prednisone","dexamethasone","hydrocortisone",
+      "diphenhydramine","loratadine","cetirizine"
+    ]);
+
+    const STOP_WORDS = new Set([
+      "the","and","or","but","a","an","of","in","on","at","to","for","from","with","by","as",
+      "is","are","was","were","be","being","been","that","this","those","these","it","its",
+      "into","over","under","within","between","through","their","there","then","than"
+    ]);
+
+    function normalizeWord(text) {
+      return text
+        .toLowerCase()
+        .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "");
+    }
+
+    function isNumberWord(text) {
+      if (!text) return false;
+      const trimmed = text.trim();
+      if (!trimmed) return false;
+      return /^([0-9][0-9./:%+-]*|[A-Za-z]{1,3}[0-9+\-]*)$/.test(trimmed);
+    }
+
+    function isMedicalOrBioWord(text) {
+      if (!text) return false;
+      const clean = normalizeWord(text);
+      if (!clean) return false;
+
+      if (STOP_WORDS.has(clean)) return false;
+
+      if (CHANGE_WORDS.has(clean)) return true;
+      if (MEDICAL_TERMS.has(clean)) return true;
+      if (BIOLOGY_TERMS.has(clean)) return true;
+      if (COMMON_MEDICATIONS.has(clean)) return true;
+
+      for (const stem of STEMS) {
+        if (clean.startsWith(stem) || clean.endsWith(stem)) return true;
+      }
+
+      if (clean.length >= 5) {
+        for (const suf of MEDICATION_SUFFIXES) {
+          if (clean.endsWith(suf)) return true;
+        }
+        for (const suf of BIO_SUFFIXES) {
+          if (clean.endsWith(suf)) return true;
+        }
+      }
+
+      if (clean.length >= 8) {
+        const consonants = clean.match(/[^aeiou]/g) || [];
+        if (consonants.length >= 4) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    function setStatus(msg, isError = false) {
+      statusEl.textContent = msg || "";
+      statusEl.className = "status" + (isError ? " error" : "");
+    }
+
+    function clearBlankZones() {
+      const existing = pageContainer.querySelectorAll(".blank-zone");
+      existing.forEach(el => el.remove());
+    }
+
+    function refreshWordBankCount() {
+      const tiles = wordBankEl.querySelectorAll(".draggable-word");
+      const remaining = tiles.length;
+      if (remaining > 0) {
+        wordCountBadge.style.display = "inline-flex";
+        wordCountBadge.textContent = remaining + " items";
+      } else {
+        wordCountBadge.style.display = "none";
+        wordBankEl.innerHTML = "<em>All words placed!</em>";
+      }
+    }
+
+    function updateWordBank(words) {
+      wordBankEl.innerHTML = "";
+      wordCountBadge.style.display = "none";
+
+      if (!words || words.length === 0) {
+        wordBankEl.innerHTML = "<em>No key terms/numbers were removed (or detected).</em>";
+        return;
+      }
+
+      const unique = Array.from(new Set(words));
+      for (let i = unique.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unique[i], unique[j]] = [unique[j], unique[i]];
+      }
+
+      unique.forEach(w => {
+        const tile = document.createElement("div");
+        tile.className = "draggable-word";
+        tile.draggable = true;
+        tile.textContent = w;
+        tile.dataset.word = normalizeWord(w);
+
+        tile.addEventListener("dragstart", e => {
+          e.dataTransfer.setData("text/plain", w);
+          tile.classList.add("dragging");
+        });
+        tile.addEventListener("dragend", () => {
+          tile.classList.remove("dragging");
+        });
+
+        wordBankEl.appendChild(tile);
+      });
+
+      refreshWordBankCount();
+    }
+
+    function removeWordFromBank(droppedNorm) {
+      if (!droppedNorm) return;
+      const tiles = Array.from(wordBankEl.querySelectorAll(".draggable-word"));
+      const match = tiles.find(t => (t.dataset.word || normalizeWord(t.textContent)) === droppedNorm);
+      if (match) {
+        match.remove();
+        refreshWordBankCount();
+      }
+    }
+
+    imageInput.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) {
+        processBtn.disabled = true;
+        setStatus("");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = ev => {
+        img = new Image();
+        img.onload = () => {
+          imgDataUrl = ev.target.result;
+          pageImage.src = imgDataUrl;
+          processBtn.disabled = false;
+          clearBlankZones();
+          updateWordBank([]);
+          customPanel.style.display = "none";
+          customTermMap = null;
+          setStatus("Image loaded. Choose difficulty, then tap “Generate Study Sheet”.");
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function createBlanksFromOccurrences(occurrences, removedWords) {
+      const rect = pageImage.getBoundingClientRect();
+      const scaleX = rect.width / img.naturalWidth;
+      const scaleY = rect.height / img.naturalHeight;
+
+      occurrences.forEach((occ, index) => {
+        const { text, bbox, normAnswer } = occ;
+
+        const zone = document.createElement("div");
+        zone.className = "blank-zone";
+        zone.dataset.answer = normAnswer;
+        zone.dataset.id = "blank-custom-" + index;
+
+        const padding = 2;
+        const x = bbox.x0 * scaleX - padding;
+        const y = bbox.y0 * scaleY - padding;
+        const w = (bbox.x1 - bbox.x0) * scaleX + padding * 2;
+        const h = (bbox.y1 - bbox.y0) * scaleY + padding * 2;
+
+        zone.style.left = x + "px";
+        zone.style.top = y + "px";
+        zone.style.width = w + "px";
+        zone.style.height = h + "px";
+
+        zone.addEventListener("dragover", e => {
+          e.preventDefault();
+          zone.classList.add("hover");
+        });
+        zone.addEventListener("dragleave", () => {
+          zone.classList.remove("hover");
+        });
+        zone.addEventListener("drop", e => {
+          e.preventDefault();
+          zone.classList.remove("hover");
+          const droppedText = e.dataTransfer.getData("text/plain") || "";
+          const droppedNorm = normalizeWord(droppedText);
+          const correct = droppedNorm && droppedNorm === zone.dataset.answer;
+          zone.textContent = droppedText;
+          zone.classList.remove("correct", "incorrect");
+          zone.classList.add(correct ? "correct" : "incorrect");
+          if (correct) {
+            removeWordFromBank(droppedNorm);
+          }
+        });
+
+        pageContainer.appendChild(zone);
+        removedWords.push(text);
+      });
+    }
+
+    applyCustomBtn.addEventListener("click", () => {
+      if (!customTermMap) {
+        setStatus("No custom terms available. Run Generate Study Sheet in Custom mode first.", true);
+        return;
+      }
+      clearBlankZones();
+      const checked = Array.from(customList.querySelectorAll("input[name='customTerm']:checked"));
+      if (checked.length === 0) {
+        setStatus("No terms selected. Check at least one term to turn into blanks.", true);
+        return;
+      }
+
+      const removedWords = [];
+      checked.forEach(input => {
+        const key = input.value;
+        const termData = customTermMap.get(key);
+        if (!termData) return;
+        const occurrences = termData.occurrences.map(occ => ({
+          text: termData.display,
+          bbox: occ.bbox,
+          normAnswer: key
+        }));
+        createBlanksFromOccurrences(occurrences, removedWords);
+      });
+
+      updateWordBank(removedWords);
+      setStatus(`Custom blanks created for ${checked.length} selected term(s). Drag words onto the blanks.`);
+    });
+
+    processBtn.addEventListener("click", async () => {
+      if (!imgDataUrl) return;
+
+      setStatus("Running OCR and selecting medical/anatomy/biology words…");
+      processBtn.disabled = true;
+      clearBlankZones();
+      updateWordBank([]);
+      customPanel.style.display = "none";
+      customTermMap = null;
+
+      try {
+        await new Promise(resolve => {
+          if (pageImage.complete) resolve();
+          else pageImage.onload = () => resolve();
+        });
+
+        const result = await Tesseract.recognize(img, "eng", { logger: () => {} });
+        const words = result.data.words || [];
+
+        const medicalCandidates = [];
+        const numberCandidates = [];
+
+        words.forEach(w => {
+          const rawText = w.text || "";
+          if (!rawText.trim()) return;
+
+          if (isMedicalOrBioWord(rawText)) {
+            const { x0, y0, x1, y1 } = w.bbox;
+            medicalCandidates.push({ text: rawText, bbox: { x0, y0, x1, y1 } });
+          } else if (isNumberWord(rawText)) {
+            const { x0, y0, x1, y1 } = w.bbox;
+            numberCandidates.push({ text: rawText, bbox: { x0, y0, x1, y1 } });
+          }
+        });
+
+        if (medicalCandidates.length === 0 && numberCandidates.length === 0) {
+          setStatus("No medical/anatomy/biology terms or numbers were confidently detected.", true);
+          updateWordBank([]);
+          processBtn.disabled = false;
+          return;
+        }
+
+        const diffKey = difficultySelect.value || "medium";
+
+        if (diffKey === "custom") {
+          const termMap = new Map();
+
+          const addToMap = (candidate, isNumber) => {
+            const norm = normalizeWord(candidate.text);
+            const key = norm || candidate.text.trim();
+            if (!key) return;
+            if (!termMap.has(key)) {
+              termMap.set(key, {
+                display: candidate.text,
+                isNumber,
+                occurrences: []
+              });
+            }
+            termMap.get(key).occurrences.push({ bbox: candidate.bbox });
+          };
+
+          medicalCandidates.forEach(c => addToMap(c, false));
+          numberCandidates.forEach(c => addToMap(c, true));
+
+          if (termMap.size === 0) {
+            setStatus("No usable terms found for custom mode.", true);
+            processBtn.disabled = false;
+            return;
+          }
+
+          customList.innerHTML = "";
+          termMap.forEach((value, key) => {
+            const row = document.createElement("div");
+            row.className = "custom-item";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.name = "customTerm";
+            checkbox.value = key;
+
+            const label = document.createElement("label");
+            label.textContent = value.display;
+
+            const meta = document.createElement("small");
+            meta.textContent = value.isNumber ? "number" : "term";
+
+            row.appendChild(checkbox);
+            row.appendChild(label);
+            row.appendChild(meta);
+
+            customList.appendChild(row);
+          });
+
+          customTermMap = termMap;
+          customPanel.style.display = "block";
+          setStatus("Custom mode: select which terms/numbers to remove, then tap “Apply custom blanks”.");
+          processBtn.disabled = false;
+          return;
+        }
+
+        const config = DIFFICULTY_CONFIG[diffKey] || DIFFICULTY_CONFIG.medium;
+        let allCandidates = medicalCandidates.slice();
+        if (config.includeNumbers) {
+          allCandidates = allCandidates.concat(numberCandidates);
+        }
+
+        if (allCandidates.length === 0) {
+          setStatus("No candidates found for this difficulty (try a different image).", true);
+          processBtn.disabled = false;
+          return;
+        }
+
+        const proportion = config.proportion;
+        const totalToHide = Math.max(1, Math.round(allCandidates.length * proportion));
+
+        const shuffled = allCandidates.slice();
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        const toHide = shuffled.slice(0, totalToHide);
+
+        const rect = pageImage.getBoundingClientRect();
+        const scaleX = rect.width / img.naturalWidth;
+        const scaleY = rect.height / img.naturalHeight;
+
+        const removedWords = [];
+
+        toHide.forEach(({ text, bbox }, index) => {
+          const norm = normalizeWord(text) || text.trim();
+
+          const zone = document.createElement("div");
+          zone.className = "blank-zone";
+          zone.dataset.answer = norm;
+          zone.dataset.id = "blank-" + index;
+
+          const padding = 2;
+          const x = bbox.x0 * scaleX - padding;
+          const y = bbox.y0 * scaleY - padding;
+          const w = (bbox.x1 - bbox.x0) * scaleX + padding * 2;
+          const h = (bbox.y1 - bbox.y0) * scaleY + padding * 2;
+
+          zone.style.left = x + "px";
+          zone.style.top = y + "px";
+          zone.style.width = w + "px";
+          zone.style.height = h + "px";
+
+          zone.addEventListener("dragover", e => {
+            e.preventDefault();
+            zone.classList.add("hover");
+          });
+          zone.addEventListener("dragleave", () => {
+            zone.classList.remove("hover");
+          });
+          zone.addEventListener("drop", e => {
+            e.preventDefault();
+            zone.classList.remove("hover");
+            const droppedText = e.dataTransfer.getData("text/plain") || "";
+            const droppedNorm = normalizeWord(droppedText) || droppedText.trim();
+            const correct = droppedNorm && droppedNorm === zone.dataset.answer;
+            zone.textContent = droppedText;
+            zone.classList.remove("correct", "incorrect");
+            zone.classList.add(correct ? "correct" : "incorrect");
+            if (correct) {
+              removeWordFromBank(droppedNorm);
+            }
+          });
+
+          pageContainer.appendChild(zone);
+          removedWords.push(text);
+        });
+
+        updateWordBank(removedWords);
+        setStatus(`Done! Created ${toHide.length} blanks at ${diffKey.replace('_',' ')} difficulty.`);
+      } catch (err) {
+        console.error(err);
+        setStatus("Something went wrong while processing the image. Try a clearer image, or refresh the page.", true);
+      } finally {
+        processBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
